@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+    <title>Get Directory</title>
+    <!-- Update your jQuery version??? -->
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <style>
+#myProgress {
+  width: 20%;
+  background-color: #ddd;
+}
+
+#myBar {
+  width: 0%;
+  height: 30px;
+  background-color: #4CAF50;
+}
+#progress p
+{
+    display: block;
+    width: 240px;
+    padding: 2px 5px;
+    margin: 2px 0;
+    border: 1px inset #446;
+    border-radius: 5px;
+}
+/*
+#progress p.success
+{
+    background: #0c0 none 0 0 no-repeat;
+}
+
+#progress p.failed
+{
+    background: #c00 none 0 0 no-repeat;
+}*/
+
+#progress_bar {
+    margin: 10px 0;
+    padding: 3px;
+    border: 1px solid #000;
+    font-size: 14px;
+    clear: both;
+    opacity: 0;
+    -moz-transition: opacity 1s linear;
+    -o-transition: opacity 1s linear;
+    -webkit-transition: opacity 1s linear;
+  }
+  #progress_bar.loading {
+    opacity: 1.0;
+  }
+  #progress_bar .percent {
+    background-color: #99ccff;
+    height: auto;
+    width: 0;
+  }
+</style>
+  
+    <script> // type="text/javascript" is unnecessary in html5
+        
+    // Short version of doing `$(document).ready(function(){`
+    // and safer naming conflicts with $
+    jQuery(function($) { 
+
+        var progress = document.querySelector('.percent');
+
+        function errorHandler(evt) {
+    switch(evt.target.error.code) {
+      case evt.target.error.NOT_FOUND_ERR:
+        alert('File Not Found!');
+        break;
+      case evt.target.error.NOT_READABLE_ERR:
+        alert('File is not readable');
+        break;
+      case evt.target.error.ABORT_ERR:
+        break; // noop
+      default:
+        alert('An error occurred reading this file.');
+    };
+  }
+
+  function updateProgress(evt) {
+    // evt is an ProgressEvent.
+    if (evt.lengthComputable) {
+      var percentLoaded = Math.round((evt.loaded / evt.total) * 100);
+      // Increase the progress bar length.
+      if (percentLoaded < 100) {
+        progress.style.width = percentLoaded + '%';
+        progress.textContent = percentLoaded + '%';
+      }
+    }
+  }
+
+        $('#file-input').on('change', function() {
+
+            
+            var stateNames = {};
+            stateNames[FileReader.EMPTY]   = 'EMPTY';
+            stateNames[FileReader.LOADING] = 'LOADING';
+            stateNames[FileReader.DONE]    = 'DONE';
+            // You can't use the same reader for all the files
+            // var reader = new FileReader
+
+            $.each(this.files, function(i, file) {
+                var total =  $('#file-input').length; loaded = 0;
+                
+                $("#progress_value").attr("max",total);
+                // Uses different reader for all files
+               
+              /* progress.css("width",'0%')
+               progress.html('0%');*/
+
+               
+                progress.style.width = '0%';
+                progress.textContent = '0%';
+
+
+                var reader = new FileReader
+                
+                reader.onerror = errorHandler;
+                reader.onprogress = updateProgress;
+                reader.onabort = function(e) {
+                    alert('File read cancelled');
+                };
+                reader.onloadstart = function(e) {
+                    document.getElementById('progress_bar').className = 'loading';
+                };
+                reader.onload = function() {
+                    progress.style.width = '100%';
+                    progress.textContent = '100%';
+                    /*progress.css("width",'100%')
+                    progress.html('100%');*/
+
+                    setTimeout("document.getElementById('progress_bar').className='';", 2000);
+                     loaded++;
+                   
+                    
+                    encrypted_result(reader.result,file);
+                    
+                    }
+                reader.readAsDataURL(file)
+                 /*var read_progress_val=0;
+                var myvar = setInterval(function(){ read_progress_val++; $("#reading_progress").val(read_progress_val);
+                if(read_progress_val > 99)
+                {
+                    clearInterval(myvar);
+                } }, 5);*/
+            })
+        })
+
+        
+    })
+
+function getByteLen(normal_val) {
+    // Force string type
+    normal_val = String(normal_val);
+
+    var byteLen = 0;
+    for (var i = 0; i < normal_val.length; i++) {
+        var c = normal_val.charCodeAt(i);
+        byteLen += c < (1 <<  7) ? 1 :
+                   c < (1 << 11) ? 2 :
+                   c < (1 << 16) ? 3 :
+                   c < (1 << 21) ? 4 :
+                   c < (1 << 26) ? 5 :
+                   c < (1 << 31) ? 6 : Number.NaN;
+    }
+    return byteLen;
+}
+function encrypted_result(result,file)
+{
+    var encrypted = result;
+    var body1 =encrypted + '\r\n';
+    var BYTES_PER_CHUNK = parseInt(2097152, 10),
+    size = getByteLen(encrypted),
+    NUM_CHUNKS = Math.max(Math.ceil(size / BYTES_PER_CHUNK), 1),
+    start = 0, end = BYTES_PER_CHUNK, num = 1,file_name = file.name;
+
+    var chunkUpload = function(blob) {
+        var fd = new FormData();
+        var xhr = new XMLHttpRequest();
+        fd.append('num', num);
+        fd.append('num_chunks', NUM_CHUNKS);
+        var blob2 = new Blob([blob], {type: file.mimeType});
+        fd.append('file', blob2,file_name);
+        xhr.open('POST', 'upload.php', true);
+        xhr.send(fd);
+    }
+    while (start < size) 
+    {
+        chunkUpload(body1.slice(start, end));
+        start = end;
+        end = start + BYTES_PER_CHUNK;  
+        num++;
+    }
+    var decrypted = encrypted;
+    $('#downloadlink').attr('href', decrypted);
+}
+
+</script>
+</head>
+<body>
+    <input type="file" id="file-input" >
+    <br>
+    <div id="progress_bar"><div class="percent">0%</div></div>
+        <br>
+
+         <progress id="reading_progress" value="0" max="100">....Uploading...</progress> 
+            <br>
+File Reader Progress Bar : 
+            <div id="myProgress">
+                <div id="myBar"></div>
+            </div>
+
+    
+    <br>
+    <br>
+    <div id="progress"></div>
+    <br>
+    <h2>Upload Progress Bar :  <progress id="progress_value1" max="100" value="0" ></progress><br></h2>
+    <div id="thelist2"></div>
+
+    <br>
+    <br>
+    <br>
+    <div id="thelist"></div>
+
+    <a href="" id="downloadlink"> download </a>
+</body>
+</html>
